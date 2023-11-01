@@ -1,84 +1,124 @@
-name: Build and test eshop
+name: Build and tests eshop
 
 on:
-  workflow_dispatch:
-  push:
-
+    workflow_dispatch:
+    push:
 
 jobs:
-  Install:
-    runs-on: ubuntu-latest
+    Install:
+        runs-on: ubuntu-latest
 
-    steps:
-      - name: Code checkout
-        uses: actions/checkout@v4.1.1
-        with:
-          token: ${{ secrets.WORKFLOW_TOKEN }}
+        steps:
+            - name: Code checkout
+              uses: actions/checkout@v4.1.1
+              with:
+                token: ${{ secrets.WORKFLOW_TOKEN }}
 
-      - name: Setup NodeJs
-        uses: actions/setup-node@v4.0.0
-        with:
-          node-version: 14
+            - name: Setup NodeJS
+              uses: actions/setup-node@v4.0.0
+              with:
+                node-version: 14
 
-      - name: Cache node modules
-        uses: actions/cache@v3.3.2
-        with:
-          path: node_modules
-          key: node_modules-${{ hashFiles('**/package-lock.json') }}
-          restore-keys: node_modules-
+            - name: Cache node modules
+              uses: actions/cache@v3.3.2
+              with:
+                path: node_modules
+                key: node_modules-${{ hashFiles('**/package-lock.json')}}
+                restore-keys: node_modules-
 
-      - name: Install package.json with npm
-        run: |
-          npm ci
+            - name: Install packages with npm
+              run: |
+                npm ci
 
-  Build:
-    needs: Install
-    runs-on: ubuntu-latest
+    Build:
+        needs: Install
+        runs-on: ubuntu-latest
 
-    steps:
-      - name: Code checkout
-        uses: actions/checkout@v4.1.1
-        with:
-          token: ${{ secrets.WORKFLOW_TOKEN }}
+        steps:
+            - name: Code checkout
+              uses: actions/checkout@v4.1.1
+              with:
+                token: ${{ secrets.WORKFLOW_TOKEN }}
 
-      - name: Setup NodeJs
-        uses: actions/setup-node@v4.0.0
-        with:
-          node-version: 14
+            - name: Setup NodeJS
+              uses: actions/setup-node@v4.0.0
+              with:
+                node-version: 14
 
-      - name: Cache node modules
-        uses: actions/cache@v3.3.2
-        with:
-          path: node_modules
-          key: node_modules-${{ hashFiles('**/package-lock.json') }}
+            - name: Cache node modules
+              uses: actions/cache@v3.3.2
+              with:
+                path: node_modules
+                key: node_modules-${{ hashFiles('**/package-lock.json')}}
 
-      - name: Build
-        run: |
-          npm rebuild node-sass --force
-          npm run build -- --colors
+            - name: Build
+              run: |
+                npm rebuild node-sass --force
+                npm run build -- --colors
 
-  Test:
-    needs: Install
-    runs-on: ubuntu-latest
+            - name: Cache node modules and build folder
+              if: ${{ github.ref == 'refs/heads/main'}}
+              uses: actions/cache@v3.3.2
+              with:
+                path: |
+                  ~/.npm
+                  ./node_modules
+                  ./build
+                key: ${{ runner.os }}-build-${{ github.run_id }}
+                restore-keys: ${{ runner.os }}-build-${{ github.run_id }}
 
-    steps:
-      - name: Code checkout
-        uses: actions/checkout@v4.1.1
-        with:
-          token: ${{ secrets.WORKFLOW_TOKEN }}
+    Test:
+        needs: Install
+        runs-on: ubuntu-latest
 
-      - name: Setup NodeJs
-        uses: actions/setup-node@v4.0.0
-        with:
-          node-version: 14
+        steps:
+            - name: Code checkout
+              uses: actions/checkout@v4.1.1
+              with:
+                token: ${{ secrets.WORKFLOW_TOKEN }}
 
-      - name: Cache node modules
-        uses: actions/cache@v3.3.2
-        with:
-          path: node_modules
-          key: node_modules-${{ hashFiles('**/package-lock.json') }}
+            - name: Setup NodeJS
+              uses: actions/setup-node@v4.0.0
+              with:
+                node-version: 14
 
-      - name: Run tests
-        run: |
-          npm run test -- --colors
+            - name: Cache node modules
+              uses: actions/cache@v3.3.2
+              with:
+                path: node_modules
+                key: node_modules-${{ hashFiles('**/package-lock.json')}}
 
+            - name: Run tests
+              run: |
+                npm run test -- --colors
+
+    Deploy:
+        needs: [Build, Test]
+        if: ${{ github.ref == 'refs/heads/master' }}
+        runs-on: ubuntu-latest
+        steps:
+          - name: Code checkout
+            uses: actions/checkout@v4.1.1
+            with:
+              token: ${{ secrets.WORKFLOW_TOKEN }}
+
+          - name: Setup Python
+            uses: actions/setup-python@v5.0.0
+            with:
+              python-version: '3.9.16'
+
+          - name: Install Ansible Boto Boto3
+            run: sudo pip3 install ansible boto boto3
+
+          - name: Deploy with ansible playbook
+            env:
+              ANSIBLE_HOST_KEY_CHECKING: False
+              AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+              AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCES_KEY }}
+              AWS_SESSION_TOKEN: ${{ secrets.AWS_SESSION_TOKEN }}
+            run: |
+              echo "${{ secrets.RUNNER_ANSIBLE_KEY }}" > ansible.pem
+              chmod 400 ansible.pem
+              ls -la
+              pwd
+              sudo ansible-playbook deploy/eshop_deploy.yml --user ec2-user --key-file ansible.pem -e "access_key=${AWS_ACCESS_KEY_ID}" -e "secret_key=${AWS_SECRET_ACCESS_KEY}" -e "session_token=${AWS_SESSION_TOKEN}"
