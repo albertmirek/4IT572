@@ -102,21 +102,29 @@ jobs:
         with:
           token: ${{ secrets.WORKFLOW_TOKEN }}
 
-      - name: Load node modules and build folder
-        uses: actions/cache@v3.3.2
+      - name: Setup Python
+        uses: actions/setup-python@v2
         with:
-          path: |
-            ~/.npm
-            ./node_modules
-            ./build
-          key: ${{ runner.os }}-build-${{ github.run_id }}
+          python-version: '3.9'
 
-      - name: Deploy function
-        uses: lowply/deploy-firebase@v0.0.5
-        env:
-          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
-          FIREBASE_PROJECT: mirek-devops
+      - name: Install Ansible
+        run: sudo pip3 install ansible
 
+      - name: Install boto
+        run: sudo pip3 install boto boto3
 
+      - name: "Configure AWS Credentials" Action for GitHub Actions
+        uses: aws-actions/configure-aws-credentials@v4.0.1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCES_KEY }}
 
+      - name: Create SSH key
+        run: |
+          echo "${{ secrets.RUNNER_ANSIBLE_KEY }}" > runner-ansible.pem
+          chmod 400 runner-ansible.pem
 
+      - name: Run Ansible Playbook
+        run: |
+          ansible-playbook deploy/eshop_deploy.yml --key-file runner-ansible.pem
