@@ -16,6 +16,7 @@ function App() {
   useEffect(() => {
     fetchProducts();
   }, [fetchProducts]);
+  console.warn("Hey");
 
   return (
     <S.Container>
