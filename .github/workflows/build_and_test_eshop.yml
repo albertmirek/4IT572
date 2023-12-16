@@ -121,4 +121,8 @@ jobs:
               chmod 400 ansible.pem
               ls -la
               pwd
-              sudo ansible-playbook deploy/eshop_deploy.yml --user ec2-user --key-file ansible.pem -e "access_key=${AWS_ACCESS_KEY_ID}" -e "secret_key=${AWS_SECRET_ACCESS_KEY}" -e "session_token=${AWS_SESSION_TOKEN}"
+              sudo ansible-playbook deploy/deploy_eshop.yml --user ec2-user --key-file ansible.pem -e "access_key=${AWS_ACCESS_KEY_ID}" -e "secret_key=${AWS_SECRET_ACCESS_KEY}" -e "session_token=${AWS_SESSION_TOKEN}"
+
+          - name: Remove ansible key
+            run: |
+              rm ansible.pem

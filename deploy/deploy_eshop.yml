@@ -7,7 +7,7 @@
       ec2_instance:
         instance_type: t2.medium
         tags:
-          Name: "eShop_production"
+          Name: "eshop_prod"
           Created: "{{ ansible_date_time.epoch }}"
         image_id: ami-0230bd60aa48260c6
         region: us-east-1
@@ -84,3 +84,39 @@
     - wait_for:
         port:
           80
+
+- name: Terminate previous ec2 instances
+  hosts: localhost
+  connection: local
+  gather_facts: no
+
+  tasks:
+    - name: find all instances
+      ec2_instance_info:
+        filters:
+          "tag:Name": "eshop_prod"
+          instance-state-name: running
+        region: us-east-1
+        aws_access_key: "{{ access_key }}"
+        aws_secret_key: "{{ secret_key }}"
+        security_token: "{{ session_token }}"
+      register: ec2_running_result
+
+    - name: Sort ec2 instances by launch time
+      set_fact:
+        sorted_instances: "{{ ec2_running_result.instances | sort(attribute='launch_time') | reverse}}"
+
+    - name: Exclude the newest instance
+      set_fact:
+        instances_to_terminate: "{{ sorted_instances[1:] }}"
+
+    - name: Terminate older instances
+      ec2_instance:
+        aws_access_key: "{{ access_key }}"
+        aws_secret_key: "{{ secret_key }}"
+        security_token: "{{ session_token }}"
+        instance_ids: "{{ item.instance_id }}"
+        state: absent
+        wait: yes
+      loop: "{{ instances_to_terminate }}"
+      when: instances_to_terminate | length > 0
